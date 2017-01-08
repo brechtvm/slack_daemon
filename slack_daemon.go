@@ -16,7 +16,7 @@ var api *slack.Client
 var msgTimestamps []string
 var channels []slack.Channel
 var evtChannelInfo *slack.ChannelInfoEvent
-var chMessages chan slack.Msg
+var chMessages chan message
 var slackToken string
 var allChannels []slack.Channel
 var rtm *slack.RTM
@@ -31,12 +31,15 @@ func main() {
 	parseFlags()
 
 	//chTopics := make(chan slack.Channel)
-	chMessages = make(chan slack.Msg, 100)
+	chMessages = make(chan message, 100)
 
 	api = slack.New(slackToken)
 	// If you set debugging, it will log all requests to the console
 	// Useful when encountering issues
-	//api.SetDebug(true)
+	api.SetDebug(false)
+
+	rtm = api.NewRTM()
+	go rtm.ManageConnection()
 
 	logger := log.New(os.Stdout, "slack-bot: ", log.Lshortfile|log.LstdFlags)
 	slack.SetLogger(logger)
@@ -74,13 +77,11 @@ func parseFlags() {
 func readMessages() {
 	for {
 		message := <-chMessages
-		if strings.Contains(message.Text, "<@") {
+		if strings.Contains(message.text, "<@") {
 			// cast username
 		}
-		info := rtm.GetInfo()
-		channelName := info.GetChannelByID(message.Channel).Name
-		output := fmt.Sprintf("%s [%s] %s: %s \r\n", channelName, timeconvert(message.Timestamp), message.Username, message.Text)
-		write2file(fmt.Sprintf("%s.log", channelName), output)
+		output := fmt.Sprintf("[%s] @%s: %s \r\n", message.timestamp, message.username, message.text)
+		write2file(fmt.Sprintf("%s.log", message.channel), output)
 		write2file("debug.log", fmt.Sprintf("%v\n", message))
 	}
 }
@@ -101,10 +102,6 @@ func write2file(filename string, message string) {
 
 // Control center
 func fetchEvents() {
-	api.SetDebug(false)
-	rtm = api.NewRTM()
-	go rtm.ManageConnection()
-
 	excludeArchivedChannels := true
 	allChannels, _ = rtm.GetChannels(excludeArchivedChannels)
 
@@ -115,58 +112,58 @@ func fetchEvents() {
 
 	for {
 		select {
-		case msg := <-rtm.IncomingEvents:
-			switch ev := msg.Data.(type) {
+		case slackMsg := <-rtm.IncomingEvents:
+			switch ev := slackMsg.Data.(type) {
 			case *slack.ConnectedEvent:
 			case *slack.MessageEvent:
 				info := rtm.GetInfo()
+				var msg message
 
-				if ev.DeletedTimestamp != "" {
-					fmt.Printf("Message deleted: [%v]\n", ev.Msg)
+				// #Message
+				switch ev.Msg.SubType {
+				case "":
+					fmt.Printf("New Message: [%v]\n[%v]", ev.Msg, ev)
+				case "message_changed":
+					fmt.Printf("Message edited: [%v]\n[%v]", ev.Msg, ev)
+					fmt.Printf("Editted @ %s", timeconvert(ev.Msg.EventTimestamp))
+					continue
+				case "message_deleted":
+					fmt.Printf("Message deleted: [%v]\n[%v]", ev.Msg, ev)
+					fmt.Printf("Deleted @ %s", timeconvert(ev.Msg.DeletedTimestamp))
 					continue
 				}
-				if ev.Edited != nil && ev.Edited.Timestamp != "" {
-					fmt.Printf("Message edited: [%v]\n", ev.Msg)
-					continue
-				}
+				msg.timestamp = timeconvert(ev.Timestamp)
 
 				// #User
-				var userName string
-				if ev.Msg.BotID != "" {
-					userName = info.GetBotByID(ev.Msg.BotID).Name
-					if userName == "" {
-						fmt.Printf("Cannot fetch BotID: %v \n", ev.Msg)
-						continue
-					}
-				} else {
-					userName = info.GetUserByID(ev.User).Name
-					if userName == "" {
-						fmt.Printf("Cannot fetch userName: %v \n", ev.Msg)
-						continue
-					}
-				}
+				userName := GetUsername(ev)
+				fmt.Printf("[%s] ", userName)
+				msg.username = userName
 
 				// #Channel
-				channelID := ev.Msg.Channel
-				ch := info.GetChannelByID(channelID)
-				if ch == nil {
-					// -- Private Message --
-					// Do not archive private messages - only channel names
-					fmt.Println("Couldnt retrieve channelname")
-					fmt.Println(ev.Msg)
-					continue
-				} else {
-					//ev.Msg.Channel = ch.Name
-					msg := fmt.Sprintf("%s [%s] %s: %s", ch.Name, timeconvert(ev.Msg.Timestamp), userName, ev.Msg.Text) // DEBUG
-
-					fmt.Printf("MessageEvent: %s \n", msg) // DEBUG
-					if ev.Msg.Text == "" {
-						fmt.Println("MultiLine?")
-						fmt.Println(ev.Msg)
-						fmt.Println(ev.Msg.Members)
+				var ch *slack.Channel
+				if ev.Msg.Channel != "" {
+					channelID := ev.Msg.Channel
+					ch = info.GetChannelByID(channelID)
+					if ch == nil {
+						fmt.Println("Not posting in a channel - not archiving")
+						continue
+					} else {
+						switch ch.IsChannel {
+						case true:
+							fmt.Printf("[Channel:#%s]\n", ch.Name)
+							msg.channel = ch.Name
+						case false:
+							// unreachable code > channel always has name
+							fmt.Println("not posting in a channel!")
+						}
 					}
-					archiveMsg(ev.Msg, *ch)
 				}
+				fmt.Printf("\n")
+
+				// #Text/Message
+				msg.text = ev.Msg.Text
+				// Archive!
+				archiveMsg(msg)
 			case *slack.PresenceChangeEvent:
 			case *slack.LatencyReport:
 			case *slack.RTMError:
@@ -198,17 +195,63 @@ func fetchEvents() {
 	}
 }
 
+func GetUsername(ev *slack.MessageEvent) string {
+	info := rtm.GetInfo()
+	var userName string
+	if ev.Msg.BotID != "" {
+		userName = info.GetBotByID(ev.Msg.BotID).Name
+		if userName == "" {
+			fmt.Printf("Cannot fetch BotID: %v \n", ev.Msg)
+		}
+	} else if ev.User != "" {
+		userName = info.GetUserByID(ev.User).Name
+		if userName == "" {
+			fmt.Printf("Cannot fetch userName: %v \n", ev.Msg)
+		}
+	} else {
+		fmt.Printf("Cannot fetch userName: %v \n", ev.Msg)
+	}
+	return userName
+}
+
+/*
+func GetChannel(ev *slack.MessageEvent) *slack.Channel {
+	channelID := ev.Msg.Channel
+	ch := info.GetChannelByID(channelID)
+	if ch == nil {
+		// -- Private Message --
+		// Do not archive private messages - only channel names
+		fmt.Println("Couldnt retrieve channelname")
+		fmt.Println(ev.Msg)
+		continue
+	} else {
+		//ev.Msg.Channel = ch.Name
+		//msg := fmt.Sprintf("%s [%s] %s: %s", ch.Name, timeconvert(ev.Msg.Timestamp), userName, ev.Msg.Text) // DEBUG
+		//fmt.Printf("MessageEvent: %s \n", msg) // DEBUG
+		if ev.Msg.Text == "" {
+			fmt.Println("MultiLine?")
+			fmt.Println(ev.Msg)
+			fmt.Println(ev.Msg.Members)
+		}
+	}
+	return ch
+}
+*/
+
 func watchChannel(ch slack.Channel) {
 	allChannels = append(allChannels, ch)
 	log.Printf("Added New Channel #%s\n", ch.Name)
 }
 
 // Put message on MessageChannel
-func archiveMsg(message slack.Msg, channel slack.Channel) {
-	chMessages <- message
+func archiveMsg(msg message) {
+	chMessages <- msg
 }
 
 func timeconvert(value string) string {
+	if value == "" {
+		return ""
+	}
 	i, err := strconv.ParseFloat(value, 64)
 	if err != nil {
 		panic(err)
