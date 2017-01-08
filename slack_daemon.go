@@ -214,30 +214,6 @@ func GetUsername(ev *slack.MessageEvent) string {
 	return userName
 }
 
-/*
-func GetChannel(ev *slack.MessageEvent) *slack.Channel {
-	channelID := ev.Msg.Channel
-	ch := info.GetChannelByID(channelID)
-	if ch == nil {
-		// -- Private Message --
-		// Do not archive private messages - only channel names
-		fmt.Println("Couldnt retrieve channelname")
-		fmt.Println(ev.Msg)
-		continue
-	} else {
-		//ev.Msg.Channel = ch.Name
-		//msg := fmt.Sprintf("%s [%s] %s: %s", ch.Name, timeconvert(ev.Msg.Timestamp), userName, ev.Msg.Text) // DEBUG
-		//fmt.Printf("MessageEvent: %s \n", msg) // DEBUG
-		if ev.Msg.Text == "" {
-			fmt.Println("MultiLine?")
-			fmt.Println(ev.Msg)
-			fmt.Println(ev.Msg.Members)
-		}
-	}
-	return ch
-}
-*/
-
 func watchChannel(ch slack.Channel) {
 	allChannels = append(allChannels, ch)
 	log.Printf("Added New Channel #%s\n", ch.Name)
