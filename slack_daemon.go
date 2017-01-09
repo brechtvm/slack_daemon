@@ -82,7 +82,6 @@ func readMessages() {
 		}
 		output := fmt.Sprintf("[%s] @%s: %s \r\n", message.timestamp, message.username, message.text)
 		write2file(fmt.Sprintf("%s.log", message.channel), output)
-		write2file("debug.log", fmt.Sprintf("%v\n", message))
 	}
 }
 
@@ -145,8 +144,8 @@ func fetchEvents() {
 					channelID := ev.Msg.Channel
 					ch = info.GetChannelByID(channelID)
 					if ch == nil {
-						fmt.Println("Not posting in a channel - not archiving")
-						continue
+						// No channel - private post
+						msg.channel = "private"
 					} else {
 						switch ch.IsChannel {
 						case true:
@@ -157,11 +156,20 @@ func fetchEvents() {
 							fmt.Println("not posting in a channel!")
 						}
 					}
+				} else {
+					// No channel - private post
+					msg.channel = "noChannel"
 				}
 				fmt.Printf("\n")
 
 				// #Text/Message
-				msg.text = ev.Msg.Text
+				if ev.Msg.Text != "" {
+					msg.text = ev.Msg.Text
+				} else {
+					fmt.Println("Couldnt fetch text")
+					msg.text = "Couldnt fetch text"
+				}
+
 				// Archive!
 				archiveMsg(msg)
 			case *slack.PresenceChangeEvent:
