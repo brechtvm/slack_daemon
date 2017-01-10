@@ -166,8 +166,11 @@ func fetchEvents() {
 				if ev.Msg.Text != "" {
 					msg.text = ev.Msg.Text
 				} else {
-					fmt.Println("Couldnt fetch text")
 					msg.text = "Couldnt fetch text"
+					if len(ev.Msg.Attachments) != 0 {
+						msg.text = fmt.Sprintf("%v", ev.Msg.Attachments)
+						fmt.Sprintf("%v \n", ev.Msg.Attachments)
+					}
 				}
 
 				// Archive!
