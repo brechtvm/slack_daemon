@@ -25,6 +25,7 @@ var rtm *slack.RTM
 // TODO
 - A bot can post multiple messages at a time
 - if strings.Contains(message.Text, "@") {
+- [14:45]  jarko added an integration to this channel: incoming-webhook --> Crash
 */
 
 func main() {
@@ -101,6 +102,19 @@ func write2file(filename string, message string) {
 
 // Control center
 func fetchEvents() {
+	// http://codesamplez.com/programming/golang-error-handling
+	defer func() {
+		if err := recover(); err != nil {
+			fmt.Println("Error: ", err)
+			var msg message
+			msg.username = "ErrorMan"
+			msg.text = fmt.Sprintf("%v", err)
+			msg.channel = "error"
+			archiveMsg(msg)
+			fetchEvents() // Hope this works dude...
+		}
+	}()
+
 	excludeArchivedChannels := true
 	allChannels, _ = rtm.GetChannels(excludeArchivedChannels)
 
