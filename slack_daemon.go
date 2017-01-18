@@ -111,7 +111,7 @@ func fetchEvents() {
 			msg.text = fmt.Sprintf("%v", err)
 			msg.channel = "error"
 			archiveMsg(msg)
-			fetchEvents() // Hope this works dude...
+			fetchEvents() // Crash occurs here
 		}
 	}()
 
@@ -132,6 +132,14 @@ func fetchEvents() {
 				info := rtm.GetInfo()
 				var msg message
 
+				// Debug
+				if ev.Msg.Text != "" {
+					var err message
+					err.text = fmt.Sprintf("%v", ev.Msg)
+					err.channel = "debug"
+					archiveMsg(err)
+				}
+
 				// #Message
 				switch ev.Msg.SubType {
 				case "":
@@ -145,6 +153,7 @@ func fetchEvents() {
 					fmt.Printf("Deleted @ %s", timeconvert(ev.Msg.DeletedTimestamp))
 					continue
 				}
+
 				msg.timestamp = timeconvert(ev.Timestamp)
 
 				// #User
