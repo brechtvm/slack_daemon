@@ -49,7 +49,16 @@ func main() {
 	go readMessages()
 
 	// Fetch all events
-	fetchEvents()
+	fetchEvents_crashHandler(fetchEvents)
+}
+
+func fetchEvents_crashHandler(f func()) {
+	defer func() {
+		log.Println("fetchEvents_Crashandler intervention!") // recover
+		log.Println(recover())                               // recover
+		fetchEvents_crashHandler(f)
+	}()
+	f()
 }
 
 func parseFlags() {
@@ -111,7 +120,7 @@ func fetchEvents() {
 			msg.text = fmt.Sprintf("%v", err)
 			msg.channel = "error"
 			archiveMsg(msg)
-			fetchEvents() // Crash occurs here
+			//fetchEvents() // Crash occurs here
 		}
 	}()
 
