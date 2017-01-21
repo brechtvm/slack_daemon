@@ -86,6 +86,9 @@ func parseFlags() {
 
 func readMessages() {
 	for {
+		if chMessages == nil {
+			continue
+		}
 		message := <-chMessages
 		if strings.Contains(message.text, "<@") {
 			// cast username
