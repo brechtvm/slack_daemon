@@ -46,7 +46,7 @@ func main() {
 	slack.SetLogger(logger)
 
 	// Read & print all messages
-	go readMessages()
+	go fetchEvents_crashHandler(readMessages)
 
 	// Fetch all events
 	fetchEvents_crashHandler(fetchEvents)
