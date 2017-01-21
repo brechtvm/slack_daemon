@@ -111,18 +111,18 @@ func write2file(filename string, message string) {
 
 // Control center
 func fetchEvents() {
-	// http://codesamplez.com/programming/golang-error-handling
-	defer func() {
-		if err := recover(); err != nil {
-			fmt.Println("Error: ", err)
-			var msg message
-			msg.username = "ErrorMan"
-			msg.text = fmt.Sprintf("%v", err)
-			msg.channel = "error"
-			archiveMsg(msg)
-			//fetchEvents() // Crash occurs here
-		}
-	}()
+	// // http://codesamplez.com/programming/golang-error-handling
+	// defer func() {
+	// 	if err := recover(); err != nil {
+	// 		fmt.Println("Error: ", err)
+	// 		var msg message
+	// 		msg.username = "ErrorMan"
+	// 		msg.text = fmt.Sprintf("%v", err)
+	// 		msg.channel = "error"
+	// 		archiveMsg(msg)
+	// 		//fetchEvents() // Crash occurs here
+	// 	}
+	// }()
 
 	excludeArchivedChannels := true
 	allChannels, _ = rtm.GetChannels(excludeArchivedChannels)
