@@ -1,0 +1,15 @@
+FROM resin/raspberry-pi-golang
+MAINTAINER Brecht Van Maldergem "brecht.vanmaldergem@gmail.com"
+
+#WORKDIR /home/root
+RUN pwd
+RUN apt-get update && apt-get upgrade -y && apt-get install -y \
+        git
+#COPY slack_daemon.go /go/slack_daemon.go
+WORKDIR /go/src/
+RUN mkdir brechtvm
+WORKDIR /go/src/brechtvm
+RUN git clone https://github.com/brechtvm/slack_daemon.git
+WORKDIR /go/src/brechtvm/slack_daemon/
+RUN go get ./...
+RUN go build

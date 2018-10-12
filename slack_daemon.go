@@ -20,6 +20,7 @@ var chMessages chan message
 var slackToken string
 var allChannels []slack.Channel
 var rtm *slack.RTM
+var outputFolder string
 
 /*
 // TODO
@@ -64,6 +65,7 @@ func fetchEvents_crashHandler(f func()) {
 func parseFlags() {
 	var tokenFlag = flag.String("token", "", "your slack token")
 	var logLevelFlag = flag.String("logLevel", "info", "logrus log level")
+	var outputFolderFlag = flag.String("outputFolder", "log", "the output folder location - default ./log")
 
 	flag.Parse()
 
@@ -71,6 +73,13 @@ func parseFlags() {
 		log.Fatal("Parameter token not given.")
 	}
 	slackToken = *tokenFlag
+
+	if *outputFolderFlag == "" {
+		log.Println("Writing to ./log")
+	} else {
+		outputFolder = *outputFolderFlag
+		log.Printf("Writing to %s", outputFolder)
+	}
 
 	if *logLevelFlag == "" {
 		log.Fatal("")
@@ -99,7 +108,8 @@ func readMessages() {
 }
 
 func write2file(filename string, message string) {
-	file, err := os.OpenFile(filename, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0660)
+	path := outputFolder + filename
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0660)
 	if err != nil {
 		log.Fatal(message, err)
 	}
