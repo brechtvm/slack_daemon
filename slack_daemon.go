@@ -7,6 +7,7 @@ import (
 	logrus "github.com/sirupsen/logrus"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -108,7 +109,8 @@ func readMessages() {
 }
 
 func write2file(filename string, message string) {
-	path := outputFolder + filename
+	path := filepath.Join(outputFolder, filename)
+
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0660)
 	if err != nil {
 		log.Fatal(message, err)
