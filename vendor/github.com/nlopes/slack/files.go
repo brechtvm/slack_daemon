@@ -1,7 +1,9 @@
 package slack
 
 import (
+	"context"
 	"errors"
+	"io"
 	"net/url"
 	"strconv"
 	"strings"
@@ -86,15 +88,20 @@ type File struct {
 	IsStarred       bool     `json:"is_starred"`
 }
 
-// FileUploadParameters contains all the parameters necessary (including the optional ones) for an UploadFile() request
+// FileUploadParameters contains all the parameters necessary (including the optional ones) for an UploadFile() request.
+//
+// There are three ways to upload a file. You can either set Content if file is small, set Reader if file is large,
+// or provide a local file path in File to upload it from your filesystem.
 type FileUploadParameters struct {
-	File           string
-	Content        string
-	Filetype       string
-	Filename       string
-	Title          string
-	InitialComment string
-	Channels       []string
+	File            string
+	Content         string
+	Reader          io.Reader
+	Filetype        string
+	Filename        string
+	Title           string
+	InitialComment  string
+	Channels        []string
+	ThreadTimestamp string
 }
 
 // GetFilesParameters contains all the parameters necessary (including the optional ones) for a GetFiles() request
@@ -130,27 +137,31 @@ func NewGetFilesParameters() GetFilesParameters {
 	}
 }
 
-func fileRequest(path string, values url.Values, debug bool) (*fileResponseFull, error) {
+func fileRequest(ctx context.Context, client httpClient, path string, values url.Values, d debug) (*fileResponseFull, error) {
 	response := &fileResponseFull{}
-	err := post(path, values, response, debug)
+	err := postForm(ctx, client, APIURL+path, values, response, d)
 	if err != nil {
 		return nil, err
 	}
-	if !response.Ok {
-		return nil, errors.New(response.Error)
-	}
-	return response, nil
+
+	return response, response.Err()
 }
 
 // GetFileInfo retrieves a file and related comments
 func (api *Client) GetFileInfo(fileID string, count, page int) (*File, []Comment, *Paging, error) {
+	return api.GetFileInfoContext(context.Background(), fileID, count, page)
+}
+
+// GetFileInfoContext retrieves a file and related comments with a custom context
+func (api *Client) GetFileInfoContext(ctx context.Context, fileID string, count, page int) (*File, []Comment, *Paging, error) {
 	values := url.Values{
-		"token": {api.config.token},
+		"token": {api.token},
 		"file":  {fileID},
 		"count": {strconv.Itoa(count)},
 		"page":  {strconv.Itoa(page)},
 	}
-	response, err := fileRequest("files.info", values, api.debug)
+
+	response, err := fileRequest(ctx, api.httpclient, "files.info", values, api)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -159,8 +170,13 @@ func (api *Client) GetFileInfo(fileID string, count, page int) (*File, []Comment
 
 // GetFiles retrieves all files according to the parameters given
 func (api *Client) GetFiles(params GetFilesParameters) ([]File, *Paging, error) {
+	return api.GetFilesContext(context.Background(), params)
+}
+
+// GetFilesContext retrieves all files according to the parameters given with a custom context
+func (api *Client) GetFilesContext(ctx context.Context, params GetFilesParameters) ([]File, *Paging, error) {
 	values := url.Values{
-		"token": {api.config.token},
+		"token": {api.token},
 	}
 	if params.User != DEFAULT_FILES_USER {
 		values.Add("user", params.User)
@@ -168,12 +184,11 @@ func (api *Client) GetFiles(params GetFilesParameters) ([]File, *Paging, error) 
 	if params.Channel != DEFAULT_FILES_CHANNEL {
 		values.Add("channel", params.Channel)
 	}
-	// XXX: this is broken. fix it with a proper unix timestamp
 	if params.TimestampFrom != DEFAULT_FILES_TS_FROM {
-		values.Add("ts_from", params.TimestampFrom.String())
+		values.Add("ts_from", strconv.FormatInt(int64(params.TimestampFrom), 10))
 	}
 	if params.TimestampTo != DEFAULT_FILES_TS_TO {
-		values.Add("ts_to", params.TimestampTo.String())
+		values.Add("ts_to", strconv.FormatInt(int64(params.TimestampTo), 10))
 	}
 	if params.Types != DEFAULT_FILES_TYPES {
 		values.Add("types", params.Types)
@@ -184,7 +199,8 @@ func (api *Client) GetFiles(params GetFilesParameters) ([]File, *Paging, error) 
 	if params.Page != DEFAULT_FILES_PAGE {
 		values.Add("page", strconv.Itoa(params.Page))
 	}
-	response, err := fileRequest("files.list", values, api.debug)
+
+	response, err := fileRequest(ctx, api.httpclient, "files.list", values, api)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -193,6 +209,11 @@ func (api *Client) GetFiles(params GetFilesParameters) ([]File, *Paging, error) 
 
 // UploadFile uploads a file
 func (api *Client) UploadFile(params FileUploadParameters) (file *File, err error) {
+	return api.UploadFileContext(context.Background(), params)
+}
+
+// UploadFileContext uploads a file and setting a custom context
+func (api *Client) UploadFileContext(ctx context.Context, params FileUploadParameters) (file *File, err error) {
 	// Test if user token is valid. This helps because client.Do doesn't like this for some reason. XXX: More
 	// investigation needed, but for now this will do.
 	_, err = api.AuthTest()
@@ -201,7 +222,7 @@ func (api *Client) UploadFile(params FileUploadParameters) (file *File, err erro
 	}
 	response := &fileResponseFull{}
 	values := url.Values{
-		"token": {api.config.token},
+		"token": {api.token},
 	}
 	if params.Filetype != "" {
 		values.Add("filetype", params.Filetype)
@@ -215,45 +236,76 @@ func (api *Client) UploadFile(params FileUploadParameters) (file *File, err erro
 	if params.InitialComment != "" {
 		values.Add("initial_comment", params.InitialComment)
 	}
+	if params.ThreadTimestamp != "" {
+		values.Add("thread_ts", params.ThreadTimestamp)
+	}
 	if len(params.Channels) != 0 {
 		values.Add("channels", strings.Join(params.Channels, ","))
 	}
 	if params.Content != "" {
 		values.Add("content", params.Content)
-		err = post("files.upload", values, response, api.debug)
+		err = postForm(ctx, api.httpclient, APIURL+"files.upload", values, response, api)
 	} else if params.File != "" {
-		err = postWithMultipartResponse("files.upload", params.File, values, response, api.debug)
+		err = postLocalWithMultipartResponse(ctx, api.httpclient, "files.upload", params.File, "file", values, response, api)
+	} else if params.Reader != nil {
+		err = postWithMultipartResponse(ctx, api.httpclient, "files.upload", params.Filename, "file", values, params.Reader, response, api)
 	}
 	if err != nil {
 		return nil, err
 	}
-	if !response.Ok {
-		return nil, errors.New(response.Error)
+
+	return &response.File, response.Err()
+}
+
+// DeleteFileComment deletes a file's comment
+func (api *Client) DeleteFileComment(commentID, fileID string) error {
+	return api.DeleteFileCommentContext(context.Background(), fileID, commentID)
+}
+
+// DeleteFileCommentContext deletes a file's comment with a custom context
+func (api *Client) DeleteFileCommentContext(ctx context.Context, fileID, commentID string) (err error) {
+	if fileID == "" || commentID == "" {
+		return errors.New("received empty parameters")
 	}
-	return &response.File, nil
+
+	values := url.Values{
+		"token": {api.token},
+		"file":  {fileID},
+		"id":    {commentID},
+	}
+	_, err = fileRequest(ctx, api.httpclient, "files.comments.delete", values, api)
+	return err
 }
 
 // DeleteFile deletes a file
 func (api *Client) DeleteFile(fileID string) error {
+	return api.DeleteFileContext(context.Background(), fileID)
+}
+
+// DeleteFileContext deletes a file with a custom context
+func (api *Client) DeleteFileContext(ctx context.Context, fileID string) (err error) {
 	values := url.Values{
-		"token": {api.config.token},
+		"token": {api.token},
 		"file":  {fileID},
 	}
-	_, err := fileRequest("files.delete", values, api.debug)
-	if err != nil {
-		return err
-	}
-	return nil
 
+	_, err = fileRequest(ctx, api.httpclient, "files.delete", values, api)
+	return err
 }
 
 // RevokeFilePublicURL disables public/external sharing for a file
 func (api *Client) RevokeFilePublicURL(fileID string) (*File, error) {
+	return api.RevokeFilePublicURLContext(context.Background(), fileID)
+}
+
+// RevokeFilePublicURLContext disables public/external sharing for a file with a custom context
+func (api *Client) RevokeFilePublicURLContext(ctx context.Context, fileID string) (*File, error) {
 	values := url.Values{
-		"token": {api.config.token},
+		"token": {api.token},
 		"file":  {fileID},
 	}
-	response, err := fileRequest("files.revokePublicURL", values, api.debug)
+
+	response, err := fileRequest(ctx, api.httpclient, "files.revokePublicURL", values, api)
 	if err != nil {
 		return nil, err
 	}
@@ -262,11 +314,17 @@ func (api *Client) RevokeFilePublicURL(fileID string) (*File, error) {
 
 // ShareFilePublicURL enabled public/external sharing for a file
 func (api *Client) ShareFilePublicURL(fileID string) (*File, []Comment, *Paging, error) {
+	return api.ShareFilePublicURLContext(context.Background(), fileID)
+}
+
+// ShareFilePublicURLContext enabled public/external sharing for a file with a custom context
+func (api *Client) ShareFilePublicURLContext(ctx context.Context, fileID string) (*File, []Comment, *Paging, error) {
 	values := url.Values{
-		"token": {api.config.token},
+		"token": {api.token},
 		"file":  {fileID},
 	}
-	response, err := fileRequest("files.sharedPublicURL", values, api.debug)
+
+	response, err := fileRequest(ctx, api.httpclient, "files.sharedPublicURL", values, api)
 	if err != nil {
 		return nil, nil, nil, err
 	}

@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/nlopes/slack"
 	logrus "github.com/sirupsen/logrus"
 	"log"
@@ -39,13 +40,14 @@ func main() {
 	api = slack.New(slackToken)
 	// If you set debugging, it will log all requests to the console
 	// Useful when encountering issues
-	api.SetDebug(false)
+	//api.OptionDebug(false)
+	slack.OptionDebug(false)
 
 	rtm = api.NewRTM()
 	go rtm.ManageConnection()
 
 	logger := log.New(os.Stdout, "slack-bot: ", log.Lshortfile|log.LstdFlags)
-	slack.SetLogger(logger)
+	slack.OptionLog(logger)
 
 	// Read & print all messages
 	go fetchEvents_crashHandler(readMessages)
@@ -104,11 +106,42 @@ func readMessages() {
 			// cast username
 		}
 		output := fmt.Sprintf("[%s] @%s: %s \r\n", message.timestamp, message.username, message.text)
-		write2file(fmt.Sprintf("%s.log", message.channel), output)
+		storeMessage(message.channel, output)
 	}
 }
 
-func write2file(filename string, message string) {
+func storeMessage(channel string, message string) {
+	write2file(channel, message)
+	write2dB(channel, message)
+}
+
+func write2dB(channel string, message string) {
+	filename := fmt.Sprintf("%s.db", channel)
+	path := filepath.Join(outputFolder, filename)
+	db, err := sql.Open("sqlite3", path)
+	if err != nil {
+		panic(err)
+	}
+
+	stmt, err := db.Prepare(fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (id INTEGER PRIMARY KEY, message TEXT)", channel))
+	if err != nil {
+		panic(err)
+	}
+
+	// insert
+	stmt, err = db.Prepare(fmt.Sprintf("INSERT INTO %s(message) values(?,?)", channel))
+	if err != nil {
+		panic(err)
+	}
+
+	res, err := stmt.Exec(message)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func write2file(channel string, message string) {
+	filename := fmt.Sprintf("%s.log", channel)
 	path := filepath.Join(outputFolder, filename)
 
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0660)

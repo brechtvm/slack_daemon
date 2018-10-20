@@ -1,28 +1,25 @@
 {
 	"ImportPath": "github.com/brechtvm/slack_daemon",
-	"GoVersion": "go1.6",
-	"GodepVersion": "v74",
+	"GoVersion": "go1.11",
+	"GodepVersion": "v79",
 	"Packages": [
 		"./..."
 	],
 	"Deps": [
 		{
+			"ImportPath": "github.com/mattn/go-sqlite3",
+			"Comment": "v1.9.0-31-gc67b489",
+			"Rev": "c67b489f7e8e10b993944d4ecef084df2db3ec8e"
+		},
+		{
 			"ImportPath": "github.com/nlopes/slack",
-			"Comment": "v0.0.1-176-g6519657",
-			"Rev": "6519657c021b7add19c4ef48220140cca0b1657b"
+			"Comment": "v0.4.0-18-gcd5e66c",
+			"Rev": "cd5e66cd06325a936961b077e1947f1eb2a61561"
 		},
 		{
 			"ImportPath": "github.com/sirupsen/logrus",
-			"Comment": "v0.11.4-2-g1deb2db",
-			"Rev": "1deb2db2a6fff8a35532079061b903c3a25eed52"
-		},
-		{
-			"ImportPath": "golang.org/x/net/websocket",
-			"Rev": "07b51741c1d6423d4a6abab1c49940ec09cb1aaf"
-		},
-		{
-			"ImportPath": "golang.org/x/sys/unix",
-			"Rev": "d4feaf1a7e61e1d9e79e6c4e76c6349e9cab0a03"
+			"Comment": "v1.1.1-14-g08e9046",
+			"Rev": "08e90462da344fbb3880e8e47a0ddacc37508579"
 		}
 	]
 }
