@@ -3,23 +3,12 @@
 	"GoVersion": "go1.11",
 	"GodepVersion": "v79",
 	"Packages": [
-		"./..."
+		"golang.org/x/sys/unix"
 	],
 	"Deps": [
 		{
-			"ImportPath": "github.com/mattn/go-sqlite3",
-			"Comment": "v1.9.0-31-gc67b489",
-			"Rev": "c67b489f7e8e10b993944d4ecef084df2db3ec8e"
-		},
-		{
-			"ImportPath": "github.com/nlopes/slack",
-			"Comment": "v0.4.0-18-gcd5e66c",
-			"Rev": "cd5e66cd06325a936961b077e1947f1eb2a61561"
-		},
-		{
-			"ImportPath": "github.com/sirupsen/logrus",
-			"Comment": "v1.1.1-14-g08e9046",
-			"Rev": "08e90462da344fbb3880e8e47a0ddacc37508579"
+			"ImportPath": "golang.org/x/sys/unix",
+			"Rev": "8e24a49d80f82323e1c4db1b5da3e0f31171a151"
 		}
 	]
 }
