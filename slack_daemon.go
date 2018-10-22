@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"flag"
 	"fmt"
 	_ "github.com/mattn/go-sqlite3"
@@ -23,6 +24,8 @@ var slackToken string
 var allChannels []slack.Channel
 var rtm *slack.RTM
 var outputFolder string
+var outputType string
+var db *sql.DB
 
 /*
 // TODO
@@ -69,6 +72,7 @@ func parseFlags() {
 	var tokenFlag = flag.String("token", "", "your slack token")
 	var logLevelFlag = flag.String("logLevel", "info", "logrus log level")
 	var outputFolderFlag = flag.String("outputFolder", "log", "the output folder location - default ./log")
+	var outputTypeFlag = flag.String("outputType", "txt", "output type: txt | sqlite - default \"txt\"")
 
 	flag.Parse()
 
@@ -94,6 +98,13 @@ func parseFlags() {
 		}
 		logrus.SetLevel(logLevel)
 	}
+
+	if *outputTypeFlag == "txt" {
+		outputType = "txt"
+	} else {
+		outputType = "influxDb"
+	}
+	log.Printf("OutputType = %s", outputType)
 }
 
 func readMessages() {
@@ -111,30 +122,74 @@ func readMessages() {
 }
 
 func storeMessage(channel string, message string) {
-	write2file(channel, message)
-	write2dB(channel, message)
+	log.Println("Storing Message")
+
+	switch outputType {
+	case "txt":
+		write2file(channel, message)
+		break
+	case "influxDb":
+		write2dB(channel, message)
+		break
+	default:
+		log.Println("Unkown output-type - stopping")
+		os.Exit(0)
+		break
+	}
+}
+
+func InitDB(filepath string) *sql.DB {
+	db, err := sql.Open("sqlite3", filepath)
+	if err != nil {
+		log.Println("InitDb - Error")
+		panic(err)
+	}
+	if db == nil {
+		log.Println("InitDb - db is nil")
+		panic("db nil")
+	}
+	return db
+}
+
+func CreateTable(db *sql.DB, tableName string) {
+	sql := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (id INTEGER PRIMARY KEY, message TEXT)", tableName)
+	log.Printf("Statement: %s", sql)
+	_, err := db.Exec(sql)
+	if err != nil {
+		log.Println("CreateTable - Error")
+		log.Println(err)
+		//panic(err)
+	} else {
+		log.Println("CreateTable")
+	}
 }
 
 func write2dB(channel string, message string) {
-	filename := fmt.Sprintf("%s.db", channel)
+	log.Println("Write2DB")
+	filename := fmt.Sprintf("%s.db3", "slack_logs")
 	path := filepath.Join(outputFolder, filename)
-	db, err := sql.Open("sqlite3", path)
-	if err != nil {
-		panic(err)
-	}
 
-	stmt, err := db.Prepare(fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (id INTEGER PRIMARY KEY, message TEXT)", channel))
-	if err != nil {
-		panic(err)
-	}
+	var err error //dirty fix
+
+	db := InitDB(path)
+	defer db.Close()
+
+	CreateTable(db, channel)
+
+	//StoreItem(db, items)
 
 	// insert
-	stmt, err = db.Prepare(fmt.Sprintf("INSERT INTO %s(message) values(?,?)", channel))
+	sql := fmt.Sprintf("INSERT INTO %s(message) values(?,?)", channel)
+	stmt, err := db.Prepare(sql)
+	log.Printf("Statement: %s", stmt)
 	if err != nil {
-		panic(err)
+		//panic(err)
+		log.Println(err)
+	} else {
+		log.Println("Insert")
 	}
 
-	res, err := stmt.Exec(message)
+	_, err = stmt.Exec(message)
 	if err != nil {
 		panic(err)
 	}
