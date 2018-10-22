@@ -4,6 +4,16 @@
 	"GodepVersion": "v79",
 	"Deps": [
 		{
+			"ImportPath": "github.com/gorilla/websocket",
+			"Comment": "v1.4.0-4-g76e4896",
+			"Rev": "76e4896901ef89d253d69b528d3701dd146fe2ae"
+		},
+		{
+			"ImportPath": "github.com/konsorten/go-windows-terminal-sequences",
+			"Comment": "v1.0.1",
+			"Rev": "5c8c8bd35d3832f5d134ae1e1e375b69a4d25242"
+		},
+		{
 			"ImportPath": "github.com/mattn/go-sqlite3",
 			"Comment": "v1.9.0-31-gc67b489",
 			"Rev": "c67b489f7e8e10b993944d4ecef084df2db3ec8e"
@@ -14,9 +24,23 @@
 			"Rev": "cd5e66cd06325a936961b077e1947f1eb2a61561"
 		},
 		{
+			"ImportPath": "github.com/nlopes/slack/slackutilsx",
+			"Comment": "v0.4.0-18-gcd5e66c",
+			"Rev": "cd5e66cd06325a936961b077e1947f1eb2a61561"
+		},
+		{
+			"ImportPath": "github.com/pkg/errors",
+			"Comment": "v0.8.0-15-g2233dee",
+			"Rev": "2233dee583dcf88f3c8b22cb7a33f05a499800d8"
+		},
+		{
 			"ImportPath": "github.com/sirupsen/logrus",
 			"Comment": "v1.1.1-14-g08e9046",
 			"Rev": "08e90462da344fbb3880e8e47a0ddacc37508579"
+		},
+		{
+			"ImportPath": "golang.org/x/crypto/ssh/terminal",
+			"Rev": "0c41d7ab0a0ee717d4590a44bcb987dfd9e183eb"
 		}
 	]
 }
