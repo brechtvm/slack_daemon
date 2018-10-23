@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	_ "github.com/mattn/go-sqlite3"
+	//"github.com/bvinc/go-sqlite-lite/sqlite3"
 	"github.com/nlopes/slack"
 	logrus "github.com/sirupsen/logrus"
 	"log"
@@ -59,6 +60,30 @@ func main() {
 	fetchEvents_crashHandler(fetchEvents)
 }
 
+func test() {
+	//fname := fmt.Sprintf("%s.db3", "slack_logs")
+	//p := filepath.Join(outputFolder, fname)
+	p := "//mnt/d/Work/Dev/Go/src/github.com/brechtvm/slack_daemon/slack_logs/database.db3"
+
+	_, err := os.Create(p)
+	if err != nil {
+		log.Println(err)
+	}
+	if _, err := os.Stat(p); !os.IsNotExist(err) {
+		x := InitDB(p)
+		err := x.Ping()
+		if err != nil {
+			log.Println(err)
+		} else {
+			log.Println("All fine")
+		}
+		CreateTable(x, "test")
+
+	} else {
+		log.Println("no luck sherlock")
+	}
+}
+
 func fetchEvents_crashHandler(f func()) {
 	defer func() {
 		log.Println("fetchEvents_Crashandler intervention!") // recover
@@ -102,7 +127,7 @@ func parseFlags() {
 	if *outputTypeFlag == "txt" {
 		outputType = "txt"
 	} else {
-		outputType = "influxDb"
+		outputType = "SQLite"
 	}
 	log.Printf("OutputType = %s", outputType)
 }
@@ -128,7 +153,7 @@ func storeMessage(channel string, message string) {
 	case "txt":
 		write2file(channel, message)
 		break
-	case "influxDb":
+	case "SQLite":
 		write2dB(channel, message)
 		break
 	default:
@@ -139,22 +164,28 @@ func storeMessage(channel string, message string) {
 }
 
 func InitDB(filepath string) *sql.DB {
-	db, err := sql.Open("sqlite3", filepath)
+	log.Printf("Reading db @ %s", filepath)
+
+	os.Create(filepath)
+
+	var err error
+	db, err = sql.Open("sqlite3", filepath)
 	if err != nil {
 		log.Println("InitDb - Error")
-		panic(err)
+		log.Fatal(err)
 	}
 	if db == nil {
 		log.Println("InitDb - db is nil")
 		panic("db nil")
 	}
+	log.Println("InitDb - db is initalized!")
 	return db
 }
 
 func CreateTable(db *sql.DB, tableName string) {
-	sql := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (id INTEGER PRIMARY KEY, message TEXT)", tableName)
-	log.Printf("Statement: %s", sql)
-	_, err := db.Exec(sql)
+	stmnt := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (id INTEGER PRIMARY KEY, message TEXT)", tableName)
+	log.Printf("Statement: %s", stmnt)
+	_, err := db.Exec(stmnt)
 	if err != nil {
 		log.Println("CreateTable - Error")
 		log.Println(err)
@@ -165,6 +196,9 @@ func CreateTable(db *sql.DB, tableName string) {
 }
 
 func write2dB(channel string, message string) {
+	// See:
+	// 	https://siongui.github.io/2016/01/09/go-sqlite-example-basic-usage/
+
 	log.Println("Write2DB")
 	filename := fmt.Sprintf("%s.db3", "slack_logs")
 	path := filepath.Join(outputFolder, filename)
@@ -179,9 +213,9 @@ func write2dB(channel string, message string) {
 	//StoreItem(db, items)
 
 	// insert
-	sql := fmt.Sprintf("INSERT INTO %s(message) values(?,?)", channel)
-	stmt, err := db.Prepare(sql)
-	log.Printf("Statement: %s", stmt)
+	stmnt := fmt.Sprintf("INSERT INTO %s(message) values(?)", channel)
+	log.Printf("INSERT Statement: %s", stmnt)
+	stmtPrepared, err := db.Prepare(stmnt)
 	if err != nil {
 		//panic(err)
 		log.Println(err)
@@ -189,9 +223,11 @@ func write2dB(channel string, message string) {
 		log.Println("Insert")
 	}
 
-	_, err = stmt.Exec(message)
+	_, err = stmtPrepared.Exec(message)
 	if err != nil {
 		panic(err)
+	} else {
+		log.Println("succesfully inserted!")
 	}
 }
 
